@@ -2,8 +2,8 @@
     ABCDParams
 
 A structure holding parameters for ABCD graph generator. Fields:
-* w::Vector{Int}:             a sorted in descending order list of vertex degrees
-* s::Vector{Int}:             a sorted in descending order list of cluster sizes
+* w::Vector{Int32}:             a sorted in descending order list of vertex degrees
+* s::Vector{Int32}:             a sorted in descending order list of cluster sizes
 * μ::Union{Float64, Nothing}: mixing parameter
 * ξ::Union{Float64, Nothing}: background graph fraction
 * isCL::Bool:                 if `true` a Chung-Lu model is used, otherwise configuration model
@@ -16,8 +16,8 @@ Exactly one of ξ and μ must be passed as `Float64`. Also if `ξ` is passed the
 The base ABCD graph is generated when ξ is passed and `isCL` is set to `false`.
 """
 struct ABCDParams
-    w::Vector{Int}
-    s::Vector{Int}
+    w::Vector{Int32}
+    s::Vector{Int32}
     μ::Union{Float64, Nothing}
     ξ::Union{Float64, Nothing}
     isCL::Bool
@@ -49,7 +49,7 @@ struct ABCDParams
 end
 
 function randround(x)
-    d = floor(Int, x)
+    d = floor(Int32, x)
     d + (rand() < x - d)
 end
 
@@ -68,7 +68,7 @@ function populate_clusters(params::ABCDParams)
     @assert issorted(s, rev=true)
 
     slots = copy(s)
-    clusters = Int[]
+    clusters = Int32[]
     j = 0
     for (i, vw) in enumerate(w)
         while j + 1 ≤ length(s) && mul * vw + 1 ≤ s[j + 1]
@@ -87,7 +87,7 @@ end
 function CL_model(clusters, params)
     @assert params.isCL
     w, s, μ = params.w, params.s, params.μ
-    cluster_weight = zeros(Int, length(s))
+    cluster_weight = zeros(Int32, length(s))
     for i in axes(w, 1)
         cluster_weight[clusters[i]] += w[i]
     end
@@ -105,9 +105,9 @@ function CL_model(clusters, params)
     end
 
     wf = float.(w)
-    edges = Set{Tuple{Int, Int}}()
+    edges = Set{Tuple{Int32, Int32}}()
     for i in axes(s, 1)
-        local_edges = Set{Tuple{Int, Int}}()
+        local_edges = Set{Tuple{Int32, Int32}}()
         idxᵢ = findall(==(i), clusters)
         wᵢ = wf[idxᵢ]
         ξ = params.islocal ? ξl[i] : ξg
@@ -141,7 +141,7 @@ function config_model(clusters, params)
     @assert !params.isCL
     w, s, μ = params.w, params.s, params.μ
 
-    cluster_weight = zeros(Int, length(s))
+    cluster_weight = zeros(Int32, length(s))
     for i in axes(w, 1)
         cluster_weight[clusters[i]] += w[i]
     end
@@ -160,15 +160,15 @@ function config_model(clusters, params)
         w_internal_raw = [w[i] * (1 - ξg) for i in axes(w, 1)]
     end
 
-    clusterlist = [Int[] for i in axes(s, 1)]
+    clusterlist = [Int32[] for i in axes(s, 1)]
     for i in axes(clusters, 1)
         push!(clusterlist[clusters[i]], i)
     end
 
-    edges = Set{Tuple{Int, Int}}()
+    edges = Set{Tuple{Int32, Int32}}()
 
     unresolved_collisions = 0
-    w_internal = zeros(Int, length(w_internal_raw))
+    w_internal = zeros(Int32, length(w_internal_raw))
     for cluster in clusterlist
         maxw_idx = argmax(view(w_internal_raw, cluster))
         wsum = 0
@@ -179,10 +179,10 @@ function config_model(clusters, params)
                 wsum += neww
             end
         end
-        maxw = floor(Int, w_internal_raw[cluster[maxw_idx]])
+        maxw = floor(Int32, w_internal_raw[cluster[maxw_idx]])
         w_internal[cluster[maxw_idx]] = maxw + (isodd(wsum) ? iseven(maxw) : isodd(maxw))
 
-        stubs = Int[]
+        stubs = Int32[]
         for i in cluster
             for j in 1:w_internal[i]
                 push!(stubs, i)
@@ -190,8 +190,8 @@ function config_model(clusters, params)
         end
         @assert sum(w_internal[cluster]) == length(stubs)
         shuffle!(stubs)
-        local_edges = Set{Tuple{Int, Int}}()
-        recycle = Tuple{Int,Int}[]
+        local_edges = Set{Tuple{Int32, Int32}}()
+        recycle = Tuple{Int32,Int32}[]
         for i in 1:2:length(stubs)
             e = minmax(stubs[i], stubs[i+1])
             if (e[1] == e[2]) || (e in local_edges)
@@ -271,7 +271,7 @@ function config_model(clusters, params)
                 "; fraction: ", 2 * unresolved_collisions / total_weight)
     end
 
-    stubs = Int[]
+    stubs = Int32[]
     for i in axes(w, 1)
         for j in w_internal[i]+1:w[i]
             push!(stubs, i)
@@ -279,8 +279,8 @@ function config_model(clusters, params)
     end
     @assert sum(w) == length(stubs) + sum(w_internal)
     shuffle!(stubs)
-    global_edges = Set{Tuple{Int, Int}}()
-    recycle = Tuple{Int,Int}[]
+    global_edges = Set{Tuple{Int32, Int32}}()
+    recycle = Tuple{Int32,Int32}[]
     for i in 1:2:length(stubs)
         e = minmax(stubs[i], stubs[i+1])
         if (e[1] == e[2]) || (e in global_edges) || (e in edges)
