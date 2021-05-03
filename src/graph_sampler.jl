@@ -351,7 +351,7 @@ function config_model(clusters, params)
     # @assert length(edges) == old_len + length(global_edges)
     @debug "$(length(global_edges)) global_edges $(length(stubs)) stubs"
     @assert 2 * length(global_edges) == length(stubs)
-    append!(Tuple{Int32,Int32}[], edges...)
+    ChainedVector([edgeset.dict.keys[edgeset.dict.slots.==0x1] for edgeset in edges])
 end
 
 """
