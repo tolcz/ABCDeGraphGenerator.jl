@@ -201,6 +201,7 @@ function config_model(clusters, params)
 
         shuffle!(stubs)
         local local_edges = Set{Tuple{Int32, Int32}}()
+        sizehint!(local_edges, length(stubs)>>1)
         local recycle = Tuple{Int32,Int32}[]
         for i in 1:2:length(stubs)
             e = minmax(stubs[i], stubs[i+1])
@@ -292,6 +293,7 @@ function config_model(clusters, params)
 
     shuffle!(stubs)
     global_edges = Set{Tuple{Int32, Int32}}()
+    sizehint!(global_edges, length(stubs)>>1)
     recycle = Tuple{Int32,Int32}[]
     @debug "$(length(edges)) communities"
     for i in 1:2:length(stubs)
