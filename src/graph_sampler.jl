@@ -176,7 +176,6 @@ function config_model(clusters, params)
     @threads for tid in 1:nthreads()
       local thr_clusters::Vector{Vector{Int32}} = []
       local thr_weights::Vector{Vector{Int32}} = []
-      local thr_edges::Vector{Set{Tuple{Int32, Int32}}} = []
 
       for c in tid:nthreads():length(s)
         local cluster = clusterlist[c]
@@ -192,6 +191,49 @@ function config_model(clusters, params)
         end
         local maxw = floor(Int32, w_internal_raw[cluster[maxw_idx]])
         w_cluster[maxw_idx] = maxw + (isodd(wsum) ? iseven(maxw) : isodd(maxw))
+
+        push!(thr_clusters, cluster)
+        push!(thr_weights, w_cluster)
+      end
+      @debug "tid $(tid) getting 1 lock"
+      lock(mutex)
+        @debug "tid $(tid) got 1 lock"
+        foreach((cluster,w_cluster)->w_internal[cluster]=w_cluster, thr_clusters, thr_weights)
+        @debug "tid $(tid) releasing 1 lock"
+      unlock(mutex)
+    end
+
+    @debug "GLOBAL starting"
+    global_edges = Set{Tuple{Int32, Int32}}()
+    recycle = Tuple{Int32,Int32}[]
+    w_global = w - w_internal
+    stubs::Vector{Int32} = zeros(Int32, sum(w_global))
+    gt = Threads.@spawn begin
+        sizehint!(global_edges, length(stubs)>>1)
+
+        v::Vector{Int32} = cumsum(w_global)
+        foreach((i,j,k)->stubs[i:j].=k, [1;v.+1], v, axes(w,1))
+        @assert sum(w) == length(stubs) + sum(w_internal)
+        shuffle!(stubs)
+
+        @debug "$(length(edges)) communities"
+        for i in 1:2:length(stubs)
+            e = minmax(stubs[i], stubs[i+1])
+            if (e[1] == e[2]) || (e in global_edges)
+                push!(recycle, e)
+            else
+                push!(global_edges, e)
+            end
+        end
+        @debug "dups1 are $(recycle)"
+    end
+
+    @threads for tid in 1:(nthreads()-1)
+      local thr_edges::Vector{Set{Tuple{Int32, Int32}}} = []
+
+      for c in tid:nthreads():length(s)
+        local cluster = clusterlist[c]
+        local w_cluster = w_internal[cluster]
 
         @debug "tid $(tid) cluster $(length(cluster)) w_cluster $(sum(w_cluster))"
         local v::Vector{Int32} = cumsum(w_cluster)
@@ -266,16 +308,13 @@ function config_model(clusters, params)
             end
             success || push!(recycle, p1)
         end
-        push!(thr_clusters, cluster)
-        push!(thr_weights, w_cluster)
         push!(thr_edges, local_edges)
       end
-      @debug "tid $(tid) getting lock"
+      @debug "tid $(tid) getting 2 lock"
       lock(mutex)
-        @debug "tid $(tid) got lock"
+        @debug "tid $(tid) got 2 lock"
         append!(edges, thr_edges)
-        foreach((cluster,w_cluster)->w_internal[cluster]=w_cluster, thr_clusters, thr_weights)
-        @debug "tid $(tid) releasing lock"
+        @debug "tid $(tid) releasing 2 lock"
       unlock(mutex)
     end
 
@@ -284,28 +323,9 @@ function config_model(clusters, params)
                 "; fraction: ", 2 * unresolved_collisions / total_weight)
     end
 
-    @debug "GLOBAL starting"
-    w_global = w - w_internal
-    v::Vector{Int32} = cumsum(w_global)
-    stubs::Vector{Int32} = zeros(Int32, sum(w_global))
-    foreach((i,j,k)->stubs[i:j].=k, [1;v.+1], v, axes(w,1))
-    @assert sum(w) == length(stubs) + sum(w_internal)
-
-    shuffle!(stubs)
-    global_edges = Set{Tuple{Int32, Int32}}()
-    sizehint!(global_edges, length(stubs)>>1)
-    recycle = Tuple{Int32,Int32}[]
-    @debug "$(length(edges)) communities"
-    for i in 1:2:length(stubs)
-        e = minmax(stubs[i], stubs[i+1])
-        if (e[1] == e[2]) || (e in global_edges)
-            push!(recycle, e)
-        else
-            push!(global_edges, e)
-        end
-    end
-    @debug "dups1 are $(recycle)"
-
+    @debug "GLOBAL waiting to complete"
+    wait(gt)
+    @debug "GLOBAL resolving dups"
     @debug "intersect $(length(global_edges)) global_edges with $(typeof(edges)) $([length(e) for e in edges])"
     dups = [Set{Tuple{Int32, Int32}}() for _ in axes(edges, 1)]
     @threads for i in axes(edges, 1)
