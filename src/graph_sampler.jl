@@ -228,7 +228,7 @@ function config_model(clusters, params)
         @debug "dups1 are $(recycle)"
     end
 
-    @threads for tid in 1:(nthreads()-1)
+    @threads for tid in 1:max(1, nthreads()-1)
       local thr_edges::Vector{Set{Tuple{Int32, Int32}}} = []
 
       for c in tid:nthreads():length(s)
