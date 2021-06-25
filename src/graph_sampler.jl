@@ -227,9 +227,11 @@ function config_model(clusters, params)
         end
         @debug "dups1 are $(recycle)"
     end
+    length_recycle = length(recycle)
 
     @threads for tid in 1:max(1, nthreads()-1)
-      local thr_edges::Vector{Set{Tuple{Int32, Int32}}} = []
+      local thr_edges   = Set{Tuple{Int32, Int32}}[]
+      local thr_recycle = Vector{Tuple{Int32,Int32}}[]
 
       for c in tid:max(1, nthreads()-1):length(s)
         local cluster = clusterlist[c]
@@ -309,15 +311,18 @@ function config_model(clusters, params)
             success || push!(recycle, p1)
         end
         push!(thr_edges, local_edges)
+        push!(thr_recycle, recycle)
       end
       @debug "tid $(tid) getting 2 lock"
       lock(mutex)
         @debug "tid $(tid) got 2 lock"
         append!(edges, thr_edges)
+        append!(recycle, thr_recycle...)
         @debug "tid $(tid) releasing 2 lock"
       unlock(mutex)
     end
 
+    unresolved_collisions = length(recycle) - length_recycle
     if unresolved_collisions > 0
         println("Unresolved_collisions: ", unresolved_collisions,
                 "; fraction: ", 2 * unresolved_collisions / total_weight)
