@@ -231,7 +231,7 @@ function config_model(clusters, params)
     @threads for tid in 1:max(1, nthreads()-1)
       local thr_edges::Vector{Set{Tuple{Int32, Int32}}} = []
 
-      for c in tid:nthreads():length(s)
+      for c in tid:max(1, nthreads()-1):length(s)
         local cluster = clusterlist[c]
         local w_cluster = w_internal[cluster]
 
