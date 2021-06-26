@@ -246,35 +246,35 @@ function config_model(clusters, params)
         shuffle!(stubs)
         local local_edges = Set{Tuple{Int32, Int32}}()
         sizehint!(local_edges, length(stubs)>>1)
-        local recycle = Tuple{Int32,Int32}[]
+        local local_recycle = Tuple{Int32,Int32}[]
         for i in 1:2:length(stubs)
             e = minmax(stubs[i], stubs[i+1])
             if (e[1] == e[2]) || (e in local_edges)
-                push!(recycle, e)
+                push!(local_recycle, e)
             else
                 push!(local_edges, e)
             end
         end
-        local last_recycle = length(recycle)
+        local last_recycle = length(local_recycle)
         local recycle_counter = last_recycle
-        while !isempty(recycle)
+        while !isempty(local_recycle)
             recycle_counter -= 1
             if recycle_counter < 0
-                if length(recycle) < last_recycle
-                    last_recycle = length(recycle)
+                if length(local_recycle) < last_recycle
+                    last_recycle = length(local_recycle)
                     recycle_counter = last_recycle
                 else
                     break
                 end
             end
-            local p1 = popfirst!(recycle)
-            local from_recycle = 2 * length(recycle) / length(stubs)
+            local p1 = popfirst!(local_recycle)
+            local from_recycle = 2 * length(local_recycle) / length(stubs)
             local success = false
             for _ in 1:2:length(stubs)
                 local p2 = if rand() < from_recycle
                     used_recycle = true
-                    recycle_idx = rand(axes(recycle, 1))
-                    recycle[recycle_idx]
+                    recycle_idx = rand(axes(local_recycle, 1))
+                    local_recycle[recycle_idx]
                 else
                     used_recycle = false
                     rand(local_edges)
@@ -297,8 +297,8 @@ function config_model(clusters, params)
                 end
                 if good_choice
                     if used_recycle
-                        recycle[recycle_idx], recycle[end] = recycle[end], recycle[recycle_idx]
-                        pop!(recycle)
+                        local_recycle[recycle_idx], local_recycle[end] = local_recycle[end], local_recycle[recycle_idx]
+                        pop!(local_recycle)
                     else
                         pop!(local_edges, p2)
                     end
@@ -308,10 +308,10 @@ function config_model(clusters, params)
                     break
                 end
             end
-            success || push!(recycle, p1)
+            success || push!(local_recycle, p1)
         end
         push!(thr_edges, local_edges)
-        push!(thr_recycle, recycle)
+        push!(thr_recycle, local_recycle)
       end
       @debug "tid $(tid) getting 2 lock"
       lock(mutex)
