@@ -1,6 +1,7 @@
 using Pkg
 using ABCDGraphGenerator
 using Random
+using StatsBase
 
 @info "Usage: julia abcd_sampler.jl config_filename"
 @info "For the syntax of config_filename see example_config.toml file"
@@ -38,6 +39,16 @@ islocal = haskey(conf, "islocal") ? parse(Bool, conf["islocal"]) : false
 
 p = ABCDGraphGenerator.ABCDParams(degs, coms, μ, ξ, isCL, islocal)
 edges, clusters = ABCDGraphGenerator.gen_graph(p)
+# assert validity of the result
+@info "length of edges: $(length(edges))"
+@assert length(edges) == sum(degs)/2
+# @info "counting degrees"
+# degcounter = zeros(Int32, length(degs))
+# for e in edges
+#     addcounts!(degcounter, [e...], 1:length(degs))
+# end
+# @assert degcounter == degs
+
 open(conf["networkfile"], "w") do io
     for (a, b) in sort!(collect(edges))
         println(io, a, "\t", b)
