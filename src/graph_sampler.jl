@@ -227,6 +227,7 @@ function config_model(clusters, params)
         local thr_recycle = Vector{Tuple{Int32,Int32}}[]
 
         for cid in ch
+            local local_recycle = Tuple{Int32,Int32}[]
             if cid == 0 # global/background graph
                 sizehint!(global_edges, length(stubs)>>1)
                 local v::Vector{Int32} = cumsum(w_global)
@@ -237,13 +238,13 @@ function config_model(clusters, params)
                 for i in 1:2:length(stubs)
                     e = minmax(stubs[i], stubs[i+1])
                     if (e[1] == e[2]) || (e in global_edges)
-                        push!(recycle, e)
+                        push!(local_recycle, e)
                     else
                         push!(global_edges, e)
                     end
                 end
-                length_recycle = length(recycle)
-                @debug "dups1 are $(recycle)"
+                length_recycle = length(local_recycle)
+                @debug "dups1 are $(local_recycle)"
             else # community graphs
                 local cluster = clusterlist[cid]
                 local w_cluster = w_internal[cluster]
@@ -257,7 +258,6 @@ function config_model(clusters, params)
                 shuffle!(local_stubs)
                 local local_edges = Set{Tuple{Int32, Int32}}()
                 sizehint!(local_edges, length(local_stubs)>>1)
-                local local_recycle = Tuple{Int32,Int32}[]
                 for i in 1:2:length(local_stubs)
                     e = minmax(local_stubs[i], local_stubs[i+1])
                     if (e[1] == e[2]) || (e in local_edges)
@@ -322,8 +322,8 @@ function config_model(clusters, params)
                     success || push!(local_recycle, p1)
                 end
                 push!(thr_edges, local_edges)
-                push!(thr_recycle, local_recycle)
             end
+            push!(thr_recycle, local_recycle)
         end
         @debug "tid $(tid) getting 2nd lock"
         lock(mutex)
@@ -336,8 +336,7 @@ function config_model(clusters, params)
 
     unresolved_collisions = length(recycle) - length_recycle
     if unresolved_collisions > 0
-        println("Unresolved_collisions: ", unresolved_collisions,
-                "; fraction: ", 2 * unresolved_collisions / total_weight)
+        @warn "Unresolved_collisions: $(unresolved_collisions) fraction: $(2 * unresolved_collisions / total_weight)"
     end
 
     @debug "GLOBAL resolving dups"
@@ -385,7 +384,7 @@ function config_model(clusters, params)
     push!(edges, global_edges)
     # @assert length(edges) == old_len + length(global_edges)
     @debug "$(length(global_edges)) global_edges $(length(stubs)) stubs"
-    @assert 2 * length(global_edges) == length(stubs)
+    @assert length(global_edges) == length(stubs)/2 + unresolved_collisions
     ChainedVector([edgeset.dict.keys[edgeset.dict.slots.==0x1] for edgeset in edges])
 end
 
