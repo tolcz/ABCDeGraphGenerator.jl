@@ -219,15 +219,14 @@ function config_model(clusters, params)
     stubs::Vector{Int32} = zeros(Int32, sum(w_global))
 
     ch = Channel{Int}(1+length(s))
-    foreach(c->put!(ch, c), 0:length(s))
+    foreach(cid->put!(ch, cid), 0:length(s))
     close(ch)
 
     @threads for tid in 1:nthreads()
         local thr_edges   = Set{Tuple{Int32, Int32}}[]
         local thr_recycle = Vector{Tuple{Int32,Int32}}[]
 
-        while !isempty(ch)
-            cid = take!(ch)
+        for cid in ch
             if cid == 0 # global/background graph
                 sizehint!(global_edges, length(stubs)>>1)
                 local v::Vector{Int32} = cumsum(w_global)
