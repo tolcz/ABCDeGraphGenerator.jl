@@ -230,8 +230,8 @@ function config_model(clusters, params)
             local local_recycle = Tuple{Int32,Int32}[]
             if cid == 0 # global/background graph
                 sizehint!(global_edges, length(stubs)>>1)
-                local v::Vector{Int32} = cumsum(w_global)
-                foreach((i,j,k)->stubs[i:j].=k, [1;v.+1], v, axes(w,1))
+                local v::Vector{Int} = cumsum(w_global)
+                map((i,j,k)->stubs[i:j].=k, [1;v.+1], v, axes(w,1));
                 @assert sum(w) == length(stubs) + sum(w_internal)
                 shuffle!(stubs)
 
@@ -252,7 +252,7 @@ function config_model(clusters, params)
                 @debug "tid $(tid) cluster $(length(cluster)) w_cluster $(sum(w_cluster))"
                 local v = cumsum(w_cluster)
                 local local_stubs::Vector{Int32} = zeros(Int32, sum(w_cluster))
-                foreach((i,j,k)->local_stubs[i:j].=k, [1;v.+1], v, cluster)
+                map((i,j,k)->local_stubs[i:j].=k, [1;v.+1], v, cluster);
                 @assert sum(w_cluster) == length(local_stubs)
 
                 shuffle!(local_stubs)

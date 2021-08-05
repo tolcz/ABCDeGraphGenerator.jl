@@ -40,6 +40,7 @@ p = ABCDeGraphGenerator.ABCDParams(degs, coms, μ, ξ, isCL, islocal)
 edges, clusters = ABCDeGraphGenerator.gen_graph(p)
 # uncomment to assert validity of configuration model output
 # if !isCL
+#     using StatsBase
 #     @info "assertion #1: length of edges is $(length(edges)), sum of degrees is $(sum(degs))"
 #     @assert length(edges) == sum(degs)/2
 #     @info "assertion #2: counting degrees"
