@@ -87,7 +87,7 @@ end
 function CL_model(clusters, params)
     @assert params.isCL
     w, s, μ = params.w, params.s, params.μ
-    cluster_weight = zeros(Int32, length(s))
+    cluster_weight = Vector{Int32}(undef, length(s))
     for i in axes(w, 1)
         cluster_weight[clusters[i]] += w[i]
     end
@@ -152,7 +152,7 @@ function config_model(clusters, params)
     @assert !params.isCL
     w, s, μ = params.w, params.s, params.μ
 
-    cluster_weight = zeros(Int32, length(s))
+    cluster_weight = Vector{Int32}(undef, length(s))
     for i in axes(w, 1)
         cluster_weight[clusters[i]] += w[i]
     end
@@ -181,7 +181,7 @@ function config_model(clusters, params)
 
     edges::Vector{Set{Tuple{Int32, Int32}}} = []
     unresolved_collisions, length_recycle = 0, 0
-    w_internal = zeros(Int32, length(w_internal_raw))
+    w_internal = Vector{Int32}(undef, length(w_internal_raw))
     mutex = ReentrantLock()
     @threads for tid in 1:nthreads()
       local thr_clusters::Vector{Vector{Int32}} = []
@@ -189,7 +189,7 @@ function config_model(clusters, params)
 
       for c in tid:nthreads():length(s)
         local cluster = clusterlist[c]
-        local w_cluster = zeros(Int32, length(cluster))
+        local w_cluster = Vector{Int32}(undef, length(cluster))
         local maxw_idx = argmax(view(w_internal_raw, cluster))
         local wsum = 0
         for i in axes(cluster, 1)
@@ -216,7 +216,7 @@ function config_model(clusters, params)
     global_edges = Set{Tuple{Int32, Int32}}()
     recycle = Tuple{Int32,Int32}[]
     w_global = w - w_internal
-    stubs::Vector{Int32} = zeros(Int32, sum(w_global))
+    stubs::Vector{Int32} = Vector{Int32}(undef, sum(w_global))
 
     ch = Channel{Int}(1+length(s))
     foreach(cid->put!(ch, cid), 0:length(s))
@@ -230,8 +230,10 @@ function config_model(clusters, params)
             local local_recycle = Tuple{Int32,Int32}[]
             if cid == 0 # global/background graph
                 sizehint!(global_edges, length(stubs)>>1)
-                local v::Vector{Int} = cumsum(w_global)
-                map((i,j,k)->stubs[i:j].=k, [1;v.+1], v, axes(w,1));
+                # populate stubs
+                local v::Vector{Int} = similar(w_global, Int, length(w_global)+1)
+                v[1] = 0; cumsum!(view(v, 2:length(v)), w_global)
+                foreach(i->stubs[v[i]+1:v[i+1]].=i, axes(w_global,1));
                 @assert sum(w) == length(stubs) + sum(w_internal)
                 shuffle!(stubs)
 
@@ -250,9 +252,11 @@ function config_model(clusters, params)
                 local w_cluster = w_internal[cluster]
 
                 @debug "tid $(tid) cluster $(length(cluster)) w_cluster $(sum(w_cluster))"
-                local v = cumsum(w_cluster)
-                local local_stubs::Vector{Int32} = zeros(Int32, sum(w_cluster))
-                map((i,j,k)->local_stubs[i:j].=k, [1;v.+1], v, cluster);
+                local local_stubs::Vector{Int32} = Vector{Int32}(undef, sum(w_cluster))
+                # populate stubs
+                local v = similar(w_cluster, Int, length(w_cluster)+1)
+                v[1] = 0; cumsum!(view(v, 2:length(v)), w_cluster)
+                foreach((i,j)->local_stubs[v[i]+1:v[i+1]].=j, axes(cluster,1), cluster);
                 @assert sum(w_cluster) == length(local_stubs)
 
                 shuffle!(local_stubs)
