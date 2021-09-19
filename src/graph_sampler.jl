@@ -180,7 +180,7 @@ function config_model(clusters, params)
     # clusterlist = clusterlist[idx]
 
     edges::Vector{Set{Tuple{Int32, Int32}}} = []
-    unresolved_collisions, length_recycle = 0, 0
+    unresolved_collisions, length_global_recycle = 0, 0
     w_internal = Vector{Int32}(undef, length(w_internal_raw))
     mutex = ReentrantLock()
     @threads for tid in 1:nthreads()
@@ -245,8 +245,11 @@ function config_model(clusters, params)
                         push!(global_edges, e)
                     end
                 end
-                length_recycle = length(local_recycle)
-                @debug "dups1 are $(local_recycle)"
+                length_global_recycle = length(local_recycle)
+                if length_global_recycle > 0
+                    @warn "global collisions: $(length_global_recycle) fraction: $(2 * length_global_recycle / total_weight)"
+                    @debug "dups1 are $(local_recycle)"
+                end
             else # community graphs
                 local cluster = clusterlist[cid]
                 local w_cluster = w_internal[cluster]
@@ -338,9 +341,9 @@ function config_model(clusters, params)
         unlock(mutex)
     end
 
-    unresolved_collisions = length(recycle) - length_recycle
+    unresolved_collisions = length(recycle) - length_global_recycle
     if unresolved_collisions > 0
-        @warn "Unresolved_collisions: $(unresolved_collisions) fraction: $(2 * unresolved_collisions / total_weight)"
+        @warn "Unresolved cluster collisions: $(unresolved_collisions) fraction: $(2 * unresolved_collisions / total_weight)"
     end
 
     @debug "GLOBAL resolving dups"
@@ -357,7 +360,18 @@ function config_model(clusters, params)
     setdiff!(global_edges, dups...)
     dups = Nothing
     @debug "dups2 are $(recycle)"
+    last_recycle = length(recycle)
+    recycle_counter = last_recycle
     while !isempty(recycle)
+        recycle_counter -= 1
+        if recycle_counter < 0
+            if length(recycle) < last_recycle
+                last_recycle = length(recycle)
+                recycle_counter = last_recycle
+            else
+                break
+            end
+        end
         p1 = pop!(recycle)
         from_recycle = 2 * length(recycle) / length(stubs)
         p2 = if rand() < from_recycle
@@ -383,13 +397,50 @@ function config_model(clusters, params)
             end
         end
     end
-    @debug "dups3 are $(recycle)" # should be empty
-    # old_len = length(edges)
     push!(edges, global_edges)
-    # @assert length(edges) == old_len + length(global_edges)
-    @debug "$(length(global_edges)) global_edges $(length(stubs)) stubs"
-    @assert length(global_edges) == length(stubs)/2 + unresolved_collisions
-    ChainedVector([edgeset.dict.keys[edgeset.dict.slots.==0x1] for edgeset in edges])
+    if isempty(recycle)
+        @debug "$(length(global_edges)) global_edges $(length(stubs)) stubs"
+        @assert length(global_edges) == length(stubs)/2 + unresolved_collisions
+    else
+        @debug "dups3 are $(recycle)"
+        last_recycle = length(recycle)
+        recycle_counter = last_recycle
+        cw = Weights([length(c) for c in edges])
+        while !isempty(recycle)
+            recycle_counter -= 1
+            if recycle_counter < 0
+                if length(recycle) < last_recycle
+                    last_recycle = length(recycle)
+                    recycle_counter = last_recycle
+                else
+                    break
+                end
+            end
+            p1 = pop!(recycle)
+            local cluster = sample(edges, cw)
+            x = rand(cluster)
+            p2 = pop!(cluster, x)
+            if rand() < 0.5
+                newp1 = minmax(p1[1], p2[1])
+                newp2 = minmax(p1[2], p2[2])
+            else
+                newp1 = minmax(p1[1], p2[2])
+                newp2 = minmax(p1[2], p2[1])
+            end
+            for newp in (newp1, newp2)
+                if (newp[1] == newp[2]) || any(c->newp in c, edges)
+                    push!(recycle, newp)
+                else
+                    push!(global_edges, newp)
+                end
+            end
+        end
+        if !isempty(recycle)
+            unresolved_collisions = length(recycle)
+            @warn "Very hard graph! Failed to generate $(unresolved_collisions) edges; fraction: $(2 * unresolved_collisions / total_weight)"
+        end
+    end
+    return ChainedVector([edgeset.dict.keys[edgeset.dict.slots.==0x1] for edgeset in edges])
 end
 
 """
