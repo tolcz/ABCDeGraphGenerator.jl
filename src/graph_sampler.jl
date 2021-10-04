@@ -87,11 +87,12 @@ end
 function CL_model(clusters, params)
     @assert params.isCL
     w, s, μ = params.w, params.s, params.μ
-    cluster_weight = Vector{Int32}(undef, length(s))
+    cluster_weight = zeros(Int32, length(s))
     for i in axes(w, 1)
         cluster_weight[clusters[i]] += w[i]
     end
     total_weight = sum(cluster_weight)
+    @assert total_weight == sum(w)
     if params.islocal
         ξl = @. μ / (1.0 - cluster_weight / total_weight)
         maximum(ξl) >= 1 && throw(ArgumentError("μ is too large to generate a graph"))
@@ -152,11 +153,12 @@ function config_model(clusters, params)
     @assert !params.isCL
     w, s, μ = params.w, params.s, params.μ
 
-    cluster_weight = Vector{Int32}(undef, length(s))
+    cluster_weight = zeros(Int32, length(s))
     for i in axes(w, 1)
         cluster_weight[clusters[i]] += w[i]
     end
     total_weight = sum(cluster_weight)
+    @assert total_weight == sum(w)
     if params.islocal
         ξl = @. μ / (1.0 - cluster_weight / total_weight)
         maximum(ξl) >= 1 && throw(ArgumentError("μ is too large to generate a graph"))

@@ -1,7 +1,7 @@
 name = "ABCDeGraphGenerator"
 uuid = "4a2737bb-2d33-40f8-8e7a-be9298b780d1"
 authors = ["Bogumił Kamiński, Paweł Prałat, François Théberge, Tomasz Olczak"]
-version = "0.2.3"
+version = "0.2.4"
 
 [deps]
 Pkg = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
